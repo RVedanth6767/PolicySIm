@@ -1,0 +1,31 @@
+/* PolicySim Diplomat — Premium Diplomatic UI */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --navy:#0a1628;--navy-mid:#0f2040;--navy-light:#162a50;--gold:#c9a84c;--gold-light:#e2c77a;--gold-dim:#8a6f32;
+  --text-main:#e8e4d9;--text-muted:#8a96a8;--border:rgba(201,168,76,.25);--border-soft:rgba(255,255,255,.07);
+  --success:#4caf82;--warning:#e8944a;
+}
+.stApp{background:var(--navy)!important;font-family:'Crimson Pro',Georgia,serif;color:var(--text-main)}
+.block-container{padding-top:1.5rem!important;padding-bottom:2rem!important;max-width:1280px!important}
+.ps-header{background:linear-gradient(135deg,var(--navy-mid) 0%,var(--navy-light) 100%);border-bottom:2px solid var(--gold);padding:1.4rem 2rem 1.2rem;margin-bottom:1.8rem;border-radius:4px;position:relative;overflow:hidden}
+.ps-header h1{font-family:'Playfair Display',serif!important;font-size:1.9rem!important;color:var(--gold-light)!important;margin:0 0 .2rem!important}
+.ps-header p{font-size:1rem;color:var(--text-muted);margin:0;letter-spacing:.08em;text-transform:uppercase;font-style:italic}
+.ps-badge{display:inline-block;background:rgba(201,168,76,.15);border:1px solid var(--gold-dim);color:var(--gold);font-size:.7rem;padding:2px 8px;border-radius:2px;margin-left:10px}
+.ps-input-panel{background:var(--navy-mid);border:1px solid var(--border);border-radius:6px;padding:1.4rem 1.2rem}
+.ps-panel-title{font-family:'Playfair Display',serif;font-size:.75rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--border);padding-bottom:.6rem;margin-bottom:1rem}
+.stSelectbox > div > div,.stTextInput > div > div > input,.stTextArea > div > div > textarea{background:var(--navy-light)!important;border:1px solid var(--border)!important;color:var(--text-main)!important;border-radius:4px!important}
+.stSelectbox label,.stTextInput label,.stTextArea label,.stSlider label{color:var(--text-muted)!important;font-size:.8rem!important;font-family:'JetBrains Mono',monospace!important;letter-spacing:.06em!important;text-transform:uppercase!important}
+.stButton>button{background:linear-gradient(135deg,#a07828 0%,var(--gold) 60%,#d4b060 100%)!important;color:var(--navy)!important;border:none!important;border-radius:4px!important;width:100%!important}
+.stTabs [data-baseweb="tab-list"]{background:var(--navy-mid)!important;border-bottom:2px solid var(--border)!important}
+.stTabs [data-baseweb="tab"]{color:var(--text-muted)!important;font-family:'JetBrains Mono',monospace!important;font-size:.75rem!important;text-transform:uppercase!important}
+.stTabs [aria-selected="true"]{color:var(--gold)!important;border-bottom:2px solid var(--gold)!important}
+.stTabs [data-baseweb="tab-panel"]{background:var(--navy-mid)!important;border:1px solid var(--border)!important;border-top:none!important;border-radius:0 0 6px 6px!important;padding:1.4rem!important}
+.ps-output-card{background:var(--navy);border-left:3px solid var(--gold);border-radius:0 4px 4px 0;padding:1rem 1.2rem;margin:.6rem 0}
+.ps-section-label,.ps-copy-hint,.ps-footer,.ps-placeholder{font-family:'JetBrains Mono',monospace}
+.ps-section-label{font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-dim);margin-bottom:.4rem}
+.ps-status-ready{background:rgba(76,175,130,.1);border:1px solid rgba(76,175,130,.35);border-radius:4px;padding:.5rem .8rem;font-size:.75rem;color:var(--success)}
+.ps-status-mock{background:rgba(232,148,74,.1);border:1px solid rgba(232,148,74,.35);border-radius:4px;padding:.5rem .8rem;font-size:.75rem;color:var(--warning)}
+.ps-copy-hint{font-size:.7rem;color:var(--text-muted);text-align:right;margin-top:.5rem}
+.ps-footer{text-align:center;padding:1.5rem 0 .5rem;font-size:.65rem;color:var(--text-muted);letter-spacing:.1em;border-top:1px solid var(--border-soft);margin-top:2rem}
+.ps-placeholder{color:#8a96a8;font-size:.85rem;padding:2.5rem 1rem;text-align:center;letter-spacing:.05em}
+.ps-placeholder-sub{font-size:.72rem;opacity:.6}
