@@ -76,38 +76,52 @@ def _load_css() -> None:
 
 
 def _render_auth() -> None:
-    st.markdown("## 🔐 Welcome to PolicySim Diplomat")
-    st.caption("Please login or register to access your personalized MUN workspace.")
+    left_spacer, center_col, right_spacer = st.columns([1.2, 1.6, 1.2])
+    with center_col:
+        st.markdown(
+            """
+<div class="auth-shell fade-in">
+  <div class="auth-card">
+    <div class="auth-title-wrap">
+      <div class="auth-eyebrow">🔐 Secure Access</div>
+      <h1 class="auth-title">Welcome to PolicySim Diplomat</h1>
+      <p class="auth-subtitle">Sign in or create your account to enter your premium MUN intelligence workspace.</p>
+    </div>
+</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        login_tab, register_tab = st.tabs(["Login", "Register"])
 
-    login_tab, register_tab = st.tabs(["Login", "Register"])
+        with login_tab:
+            with st.form("login_form", clear_on_submit=False):
+                login_username = st.text_input("Username", key="login_username")
+                login_password = st.text_input("Password", type="password", key="login_password")
+                login_submit = st.form_submit_button("Login", use_container_width=True)
 
-    with login_tab:
-        with st.form("login_form", clear_on_submit=False):
-            login_username = st.text_input("Username", key="login_username")
-            login_password = st.text_input("Password", type="password", key="login_password")
-            login_submit = st.form_submit_button("Login", use_container_width=True)
+            if login_submit:
+                user_id = login_user(login_username, login_password)
+                if user_id:
+                    st.session_state["user_id"] = user_id
+                    st.session_state["username"] = login_username.strip()
+                    st.session_state["auth_toast"] = "Login successful. Loading your dashboard..."
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password.")
 
-        if login_submit:
-            user_id = login_user(login_username, login_password)
-            if user_id:
-                st.session_state["user_id"] = user_id
-                st.session_state["username"] = login_username.strip()
-                st.success("Login successful. Loading your dashboard...")
-                st.rerun()
-            else:
-                st.error("Invalid username or password.")
+        with register_tab:
+            with st.form("register_form", clear_on_submit=True):
+                reg_username = st.text_input("Choose Username", key="reg_username")
+                reg_password = st.text_input("Choose Password", type="password", key="reg_password")
+                register_submit = st.form_submit_button("Register", use_container_width=True)
 
-    with register_tab:
-        with st.form("register_form", clear_on_submit=True):
-            reg_username = st.text_input("Choose Username", key="reg_username")
-            reg_password = st.text_input("Choose Password", type="password", key="reg_password")
-            register_submit = st.form_submit_button("Register", use_container_width=True)
-
-        if register_submit:
-            if register_user(reg_username, reg_password):
-                st.success("Registration successful. You can now log in.")
-            else:
-                st.error("Registration failed. Use a unique username and non-empty credentials.")
+            if register_submit:
+                if register_user(reg_username, reg_password):
+                    st.toast("Registration successful. You can now log in.", icon="✅")
+                    st.success("Registration successful. You can now log in.")
+                else:
+                    st.error("Registration failed. Use a unique username and non-empty credentials.")
 
 
 _load_css()
@@ -135,6 +149,7 @@ def _init_state() -> None:
         "app_started": False,
         "user_id": None,
         "username": None,
+        "auth_toast": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -142,6 +157,10 @@ def _init_state() -> None:
 
 
 _init_state()
+
+if st.session_state.get("auth_toast"):
+    st.toast(st.session_state["auth_toast"], icon="✅")
+    st.session_state["auth_toast"] = None
 
 if not st.session_state["user_id"]:
     _render_auth()
