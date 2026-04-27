@@ -2,11 +2,12 @@
 
 from config import WORDS_PER_MINUTE
 from utils.ai_client import run_module
+from utils.humanizer import humanize_speech
 
 _SYSTEM = (
-    "You are a speechwriter who has drafted opening addresses for senior diplomats "
-    "at the United Nations General Assembly and Security Council. "
-    "Your speeches are authoritative, precise, and oratorically memorable."
+    "You are a UN speechwriter and MUN Best Delegate coach. "
+    "Write speeches that sound natural when spoken aloud. "
+    "Avoid essay tone. Use rhythm, pauses, and rhetorical emphasis."
 )
 
 
@@ -40,7 +41,10 @@ Rules:
 - Tone: authoritative, collaborative, not combative
 - Target ~{word_count} words
 - Begin: "Honorable Chair, distinguished delegates, and esteemed guests,"
-- End: "I thank you." or equivalent"""
+- End: "I thank you." or equivalent
+- Use varied sentence length and spoken cadence
+- Maintain persuasive diplomatic tone without sounding robotic
+- Avoid repetitive phrasing and formulaic transitions"""
 
 
 def _mock(country: str, topic: str, committee: str) -> str:
@@ -68,9 +72,10 @@ def generate_speech(
     focus: str = "policy, cooperation",
 ) -> str:
     """Return a formatted opening speech as prose markdown."""
-    return run_module(
+    speech = run_module(
         prompt=_build_prompt(country, topic, committee, duration_minutes, tone, focus),
         system=_SYSTEM,
         mock_fn=lambda: _mock(country, topic, committee),
         label="Speech",
     )
+    return humanize_speech(speech)
