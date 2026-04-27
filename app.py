@@ -8,7 +8,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 import streamlit as st
 
 from config import APP_TITLE, APP_ICON, USE_MOCK, BRIEF_SUMMARY_LENGTH
+from db.database import init_db
+from utils.auth import login_user, register_user
 from utils.countries import UN_MEMBER_STATES
+from utils.history import get_user_history, save_speech
 from utils.ui import (
     render_brief_tab,
     render_arguments_tab,
@@ -72,7 +75,43 @@ def _load_css() -> None:
         pass
 
 
+def _render_auth() -> None:
+    st.markdown("## 🔐 Welcome to PolicySim Diplomat")
+    st.caption("Please login or register to access your personalized MUN workspace.")
+
+    login_tab, register_tab = st.tabs(["Login", "Register"])
+
+    with login_tab:
+        with st.form("login_form", clear_on_submit=False):
+            login_username = st.text_input("Username", key="login_username")
+            login_password = st.text_input("Password", type="password", key="login_password")
+            login_submit = st.form_submit_button("Login", use_container_width=True)
+
+        if login_submit:
+            user_id = login_user(login_username, login_password)
+            if user_id:
+                st.session_state["user_id"] = user_id
+                st.session_state["username"] = login_username.strip()
+                st.success("Login successful. Loading your dashboard...")
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
+
+    with register_tab:
+        with st.form("register_form", clear_on_submit=True):
+            reg_username = st.text_input("Choose Username", key="reg_username")
+            reg_password = st.text_input("Choose Password", type="password", key="reg_password")
+            register_submit = st.form_submit_button("Register", use_container_width=True)
+
+        if register_submit:
+            if register_user(reg_username, reg_password):
+                st.success("Registration successful. You can now log in.")
+            else:
+                st.error("Registration failed. Use a unique username and non-empty credentials.")
+
+
 _load_css()
+init_db()
 
 st.markdown(
     """
@@ -94,6 +133,8 @@ def _init_state() -> None:
         "rebuttal": None,
         "analysed": False,
         "app_started": False,
+        "user_id": None,
+        "username": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -101,6 +142,10 @@ def _init_state() -> None:
 
 
 _init_state()
+
+if not st.session_state["user_id"]:
+    _render_auth()
+    st.stop()
 
 if not st.session_state["app_started"]:
     st.markdown(
@@ -134,7 +179,7 @@ st.markdown(
     f"""
 <div class="topnav">
   <div class="topnav-brand"><span class="topnav-icon">🌐</span>{APP_TITLE} <span class="topnav-accent">Diplomat</span></div>
-  <div class="topnav-status"><span class="status-dot"></span>{'Demo Mode Active' if USE_MOCK else 'AI Active'}</div>
+  <div class="topnav-status"><span class="status-dot"></span>{'Demo Mode Active' if USE_MOCK else 'AI Active'} · Logged in as {st.session_state['username']}</div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -224,7 +269,9 @@ with left_col:
                 tone=config["tone"],
                 focus=config["focus"],
             )
-            st.session_state["speech"] = generate_speech(country, topic, committee, duration, tone=config["tone"], focus=config["focus"])
+            speech_text = generate_speech(country, topic, committee, duration, tone=config["tone"], focus=config["focus"])
+            st.session_state["speech"] = speech_text
+            save_speech(st.session_state["user_id"], country, topic, committee, speech_text)
             st.session_state["analysed"] = True
             st.session_state["rebuttal"] = None
 
@@ -243,12 +290,13 @@ with left_col:
         with m3:
             st.markdown(f'<div class="metric-card metric-card-gold"><div class="metric-label">Readiness Score</div><div class="metric-value">{readiness}%</div></div>', unsafe_allow_html=True)
 
-    tab_brief, tab_args, tab_speech, tab_rebuttal = st.tabs(
+    tab_brief, tab_args, tab_speech, tab_rebuttal, tab_history = st.tabs(
         [
             f"📡 {committee} Intelligence Brief",
             f"⚔ {committee} Debate Points",
             f"🎤 {committee} Podium Speech",
             "🔄 Live Counter",
+            "📜 History",
         ]
     )
 
@@ -285,5 +333,21 @@ with left_col:
             rebuttal=st.session_state["rebuttal"],
             generate_fn=lambda opp, pos: generate_rebuttal(country, topic, opp, pos),
         )
+
+    with tab_history:
+        st.markdown("### Your Speech Archive")
+        history_rows = get_user_history(st.session_state["user_id"])
+        if not history_rows:
+            st.info("No speeches saved yet. Generate your first intelligence brief to start building history.")
+        else:
+            for row in history_rows:
+                header = f"{row['country']} · {row['committee']} · {row['created_at']}"
+                with st.expander(header):
+                    st.markdown(f"**Topic:** {row['topic']}")
+                    st.markdown(f"**Committee:** {row['committee']}")
+                    st.markdown(f"**Country:** {row['country']}")
+                    st.markdown(f"**Generated:** {row['created_at']}")
+                    st.markdown("---")
+                    st.markdown(row["speech"])
 
 st.markdown('<div class="ps-footer">PolicySim Diplomat · Built for Delegates, by Diplomats</div>', unsafe_allow_html=True)
