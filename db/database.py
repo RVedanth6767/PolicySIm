@@ -37,9 +37,15 @@ def init_db() -> None:
                 topic TEXT NOT NULL,
                 committee TEXT NOT NULL,
                 speech TEXT NOT NULL,
+                evaluation TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
             """
         )
+
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(history)").fetchall()}
+        if "evaluation" not in columns:
+            conn.execute("ALTER TABLE history ADD COLUMN evaluation TEXT")
+
         conn.commit()

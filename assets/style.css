@@ -223,3 +223,20 @@ html, body, [class*="css"]  {
 .fade-in {animation: fadeIn .8s ease both}
 @keyframes fadeIn {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes drift {0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+
+.eval-card {
+  background: linear-gradient(135deg, #0f2040, #162a50);
+  border: 1px solid rgba(201,168,76,0.3);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-top: 1.2rem;
+}
+
+.eval-title {
+  font-family: 'Playfair Display', serif;
+  color: #e2c77a;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
