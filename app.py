@@ -12,6 +12,7 @@ from db.database import init_db
 from utils.auth import login_user, register_user
 from utils.countries import UN_MEMBER_STATES
 from utils.history import get_user_history, save_speech
+from modules.evaluator import generate_evaluation
 from utils.ui import (
     render_brief_tab,
     render_arguments_tab,
@@ -145,6 +146,7 @@ def _init_state() -> None:
         "arguments": None,
         "speech": None,
         "rebuttal": None,
+        "evaluation": None,
         "analysed": False,
         "app_started": False,
         "user_id": None,
@@ -290,7 +292,9 @@ with left_col:
             )
             speech_text = generate_speech(country, topic, committee, duration, tone=config["tone"], focus=config["focus"])
             st.session_state["speech"] = speech_text
-            save_speech(st.session_state["user_id"], country, topic, committee, speech_text)
+            evaluation = generate_evaluation(country, topic, speech_text)
+            st.session_state["evaluation"] = evaluation
+            save_speech(st.session_state["user_id"], country, topic, committee, speech_text, evaluation)
             st.session_state["analysed"] = True
             st.session_state["rebuttal"] = None
 
@@ -343,6 +347,17 @@ with left_col:
             duration=duration,
         )
 
+        if "evaluation" in st.session_state and st.session_state["evaluation"]:
+            st.markdown(
+                """
+    <div class="eval-card">
+        <div class="eval-title">🎯 AI Speech Evaluation</div>
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(st.session_state["evaluation"])
+
     with tab_rebuttal:
         render_rebuttal_tab(
             analysed=st.session_state["analysed"],
@@ -368,5 +383,8 @@ with left_col:
                     st.markdown(f"**Generated:** {row['created_at']}")
                     st.markdown("---")
                     st.markdown(row["speech"])
+                    if row["evaluation"]:
+                        st.markdown("### 🎯 AI Speech Evaluation")
+                        st.markdown(row["evaluation"])
 
 st.markdown('<div class="ps-footer">PolicySim Diplomat · Built for Delegates, by Diplomats</div>', unsafe_allow_html=True)
