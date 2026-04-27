@@ -21,6 +21,40 @@ from modules.speech import generate_speech
 from modules.rebuttal import generate_rebuttal
 
 
+COMMITTEE_CATEGORIES = {
+    "🌍 UN Bodies": [
+        "UNGA", "UNSC", "UNHRC", "ECOSOC", "UNICEF", "UNESCO", "UNEP", "WHO", "UNDP", "UN Women", "FAO", "ILO", "UNFCCC", "ITU"
+    ],
+    "⚖️ Legal & Justice": [
+        "ICJ", "ICC", "UNODC"
+    ],
+    "💰 Economic & Finance": [
+        "IMF", "World Bank", "WTO", "G20", "BRICS"
+    ],
+    "🌐 Geopolitical Blocs": [
+        "NATO", "EU Parliament", "ASEAN"
+    ],
+    "🇮🇳 Indian Committees": [
+        "Lok Sabha", "Rajya Sabha", "AIPPM", "NITI Aayog", "Indian Supreme Court"
+    ],
+    "⚡ Crisis Committees": [
+        "Joint Crisis Committee (JCC)", "War Cabinet", "Cold War Crisis", "Terror Crisis Simulation"
+    ]
+}
+
+ALL_COMMITTEES = [c for category in COMMITTEE_CATEGORIES.values() for c in category]
+
+COMMITTEE_CONFIG = {
+    "UNSC": {"tone": "geopolitical, strategic", "focus": "conflict, security, diplomacy"},
+    "WHO": {"tone": "technical, scientific", "focus": "health, disease, global response"},
+    "UNHRC": {"tone": "ethical, humanitarian", "focus": "human rights, violations"},
+    "IMF": {"tone": "economic, analytical", "focus": "finance, policy, stability"},
+    "NATO": {"tone": "military alliance", "focus": "defense, security"},
+    "Lok Sabha": {"tone": "political debate", "focus": "domestic policy, governance"},
+    "default": {"tone": "formal diplomatic", "focus": "policy, cooperation"}
+}
+
+
 st.set_page_config(
     page_title=f"{APP_TITLE} — MUN AI Assistant",
     page_icon=APP_ICON,
@@ -119,10 +153,10 @@ with right_col:
     )
 
     st.markdown('<div class="panel-field-label">Committee</div>', unsafe_allow_html=True)
-    committee = st.text_input(
-        "Committee Name",
-        placeholder="e.g. UNSC, UNGA, ECOSOC, HRC",
-        value="UNGA",
+    committee = st.selectbox(
+        "Committee",
+        ALL_COMMITTEES,
+        key="committee",
         label_visibility="collapsed",
     )
 
@@ -135,9 +169,17 @@ with right_col:
     )
 
     st.markdown('<div class="panel-field-label">Agenda</div>', unsafe_allow_html=True)
+    topic_placeholder = "e.g. Climate Finance for Developing Nations"
+    if committee in COMMITTEE_CATEGORIES["⚡ Crisis Committees"]:
+        topic_placeholder = "e.g. Immediate Response Strategy and Command Priorities"
+    elif committee in COMMITTEE_CATEGORIES["🇮🇳 Indian Committees"]:
+        topic_placeholder = "e.g. National Education Reform and Fiscal Federalism"
+    elif committee in COMMITTEE_CATEGORIES["💰 Economic & Finance"]:
+        topic_placeholder = "e.g. Sovereign Debt Relief and Global Financial Stability"
+
     topic = st.text_input(
         "Agenda Topic",
-        placeholder="e.g. Climate Finance for Developing Nations",
+        placeholder=topic_placeholder,
         label_visibility="collapsed",
     )
 
@@ -170,11 +212,19 @@ with right_col:
 
 with left_col:
     if analyse_clicked and topic.strip():
+        config = COMMITTEE_CONFIG.get(committee, COMMITTEE_CONFIG["default"])
         with st.spinner("Consulting diplomatic sources..."):
-            brief = generate_brief(country, topic, committee)
+            brief = generate_brief(country, topic, committee, tone=config["tone"], focus=config["focus"])
             st.session_state["brief"] = brief
-            st.session_state["arguments"] = generate_arguments(country, topic, brief[:BRIEF_SUMMARY_LENGTH])
-            st.session_state["speech"] = generate_speech(country, topic, committee, duration)
+            st.session_state["arguments"] = generate_arguments(
+                country,
+                topic,
+                brief[:BRIEF_SUMMARY_LENGTH],
+                committee=committee,
+                tone=config["tone"],
+                focus=config["focus"],
+            )
+            st.session_state["speech"] = generate_speech(country, topic, committee, duration, tone=config["tone"], focus=config["focus"])
             st.session_state["analysed"] = True
             st.session_state["rebuttal"] = None
 
@@ -195,9 +245,9 @@ with left_col:
 
     tab_brief, tab_args, tab_speech, tab_rebuttal = st.tabs(
         [
-            "📡 Intelligence Brief",
-            "⚔ Debate Points",
-            "🎤 Podium Speech",
+            f"📡 {committee} Intelligence Brief",
+            f"⚔ {committee} Debate Points",
+            f"🎤 {committee} Podium Speech",
             "🔄 Live Counter",
         ]
     )

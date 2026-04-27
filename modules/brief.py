@@ -8,10 +8,12 @@ _SYSTEM = (
 )
 
 
-def _build_prompt(country: str, topic: str, committee: str) -> str:
+def _build_prompt(country: str, topic: str, committee: str, tone: str = "formal diplomatic", focus: str = "policy, cooperation") -> str:
     return f"""Country: {country}
 Topic: {topic}
 Committee: {committee}
+Tone: {tone}
+Focus: {focus}
 
 Generate a structured diplomatic intelligence brief using EXACTLY these bold headers:
 
@@ -53,10 +55,16 @@ def _mock(country: str, topic: str, committee: str) -> str:
 - Opposes any language granting external bodies unilateral enforcement powers over domestic policy"""
 
 
-def generate_brief(country: str, topic: str, committee: str) -> str:
+def generate_brief(
+    country: str,
+    topic: str,
+    committee: str,
+    tone: str = "formal diplomatic",
+    focus: str = "policy, cooperation",
+) -> str:
     """Return a formatted markdown country brief, falling back to mock on failure."""
     return run_module(
-        prompt=_build_prompt(country, topic, committee),
+        prompt=_build_prompt(country, topic, committee, tone, focus),
         system=_SYSTEM,
         mock_fn=lambda: _mock(country, topic, committee),
         label="Country Brief",
