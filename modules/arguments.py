@@ -8,9 +8,19 @@ _SYSTEM = (
 )
 
 
-def _build_prompt(country: str, topic: str, brief_summary: str) -> str:
+def _build_prompt(
+    country: str,
+    topic: str,
+    brief_summary: str,
+    committee: str = "",
+    tone: str = "formal diplomatic",
+    focus: str = "policy, cooperation",
+) -> str:
     return f"""Country: {country}
 Topic: {topic}
+Committee: {committee}
+Tone: {tone}
+Focus: {focus}
 Position Context: {brief_summary}
 
 Generate exactly 4 structured debate arguments for {country}'s delegation.
@@ -61,10 +71,17 @@ def _mock(country: str, topic: str) -> str:
 - **Closing Assert:** The delegation calls on this committee to build a framework the entire world can sustain, not only the nations that can absorb the cost."""
 
 
-def generate_arguments(country: str, topic: str, brief_summary: str = "") -> str:
+def generate_arguments(
+    country: str,
+    topic: str,
+    brief_summary: str = "",
+    committee: str = "",
+    tone: str = "formal diplomatic",
+    focus: str = "policy, cooperation",
+) -> str:
     """Return 4 structured debate arguments as formatted markdown."""
     return run_module(
-        prompt=_build_prompt(country, topic, brief_summary),
+        prompt=_build_prompt(country, topic, brief_summary, committee, tone, focus),
         system=_SYSTEM,
         mock_fn=lambda: _mock(country, topic),
         label="Arguments",

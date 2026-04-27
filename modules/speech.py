@@ -10,11 +10,20 @@ _SYSTEM = (
 )
 
 
-def _build_prompt(country: str, topic: str, committee: str, duration_minutes: int) -> str:
+def _build_prompt(
+    country: str,
+    topic: str,
+    committee: str,
+    duration_minutes: int,
+    tone: str = "formal diplomatic",
+    focus: str = "policy, cooperation",
+) -> str:
     word_count = duration_minutes * WORDS_PER_MINUTE
     return f"""Country: {country}
 Topic: {topic}
 Committee: {committee}
+Tone: {tone}
+Focus: {focus}
 Target duration: {duration_minutes} minute(s) (~{word_count} words)
 
 Write a formal MUN opening speech for {country}'s delegation structured as:
@@ -50,10 +59,17 @@ The delegation of {country} stands ready to engage constructively with all partn
 I thank you."""
 
 
-def generate_speech(country: str, topic: str, committee: str, duration_minutes: int = 2) -> str:
+def generate_speech(
+    country: str,
+    topic: str,
+    committee: str,
+    duration_minutes: int = 2,
+    tone: str = "formal diplomatic",
+    focus: str = "policy, cooperation",
+) -> str:
     """Return a formatted opening speech as prose markdown."""
     return run_module(
-        prompt=_build_prompt(country, topic, committee, duration_minutes),
+        prompt=_build_prompt(country, topic, committee, duration_minutes, tone, focus),
         system=_SYSTEM,
         mock_fn=lambda: _mock(country, topic, committee),
         label="Speech",
