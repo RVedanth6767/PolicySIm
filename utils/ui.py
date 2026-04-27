@@ -120,7 +120,9 @@ def render_rebuttal_tab(
 
     if st.button("⚡ Generate Counter", key="rebuttal_btn", disabled=not opposing.strip(), use_container_width=True):
         own_pos = (brief or "")[:300]
-        st.session_state["rebuttal"] = generate_fn(opposing, own_pos)
+        results = st.session_state.get("results", {})
+        results["rebuttal"] = generate_fn(opposing, own_pos)
+        st.session_state["results"] = results
 
     if rebuttal:
         st.markdown('<div class="pace-bar-label">Response Readiness</div>', unsafe_allow_html=True)
