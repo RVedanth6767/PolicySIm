@@ -160,6 +160,7 @@ def _init_state() -> None:
         "user_responses": [],
         "ai_feedback": [],
         "round_number": 0,
+        "speech_grader_result": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -231,6 +232,80 @@ def _parse_crisis_feedback(feedback_text: str) -> dict:
         "suggestions": suggestions or "No strategic improvement extracted.",
         "score": score,
         "raw": feedback_text.strip(),
+    }
+
+
+def _build_speech_grader_prompt(speech: str, committee: str, country: str, strict_mode: bool) -> str:
+    strict_line = "Be highly critical. Score like a competitive international MUN.\n\n" if strict_mode else ""
+    return (
+        "Act as a senior UN committee chair.\n\n"
+        "Use formal UN debate style similar to speeches from UN General Assembly sessions.\n\n"
+        f"{strict_line}"
+        "Evaluate the following MUN speech based on real UN debate standards.\n\n"
+        "Score STRICTLY out of 10 for each category:\n"
+        "- Diplomacy & Tone\n"
+        "- Clarity & Structure\n"
+        "- Evidence & Facts\n"
+        "- Persuasiveness\n"
+        f"- Policy Alignment with {country}\n\n"
+        "Then:\n"
+        "- Provide total score out of 50\n"
+        "- Give 3 specific strengths\n"
+        "- Give 3 specific improvements\n"
+        "- Rewrite ONE improved paragraph from the speech\n"
+        "- Provide a final judge-style remark\n\n"
+        "Return in this exact structure:\n"
+        "Diplomacy & Tone: <score>/10\n"
+        "Clarity & Structure: <score>/10\n"
+        "Evidence & Facts: <score>/10\n"
+        "Persuasiveness: <score>/10\n"
+        "Policy Alignment: <score>/10\n"
+        "Total Score: <total>/50\n"
+        "Strengths:\n- ...\n- ...\n- ...\n"
+        "Improvements:\n- ...\n- ...\n- ...\n"
+        "Improved Paragraph:\n<one rewritten paragraph>\n"
+        "Judge Remark:\n<final remark>\n\n"
+        f"Speech:\n{speech}\n\n"
+        f"Committee: {committee}\n"
+        f"Country: {country}\n"
+    )
+
+
+def _parse_speech_grader_response(text: str) -> dict:
+    score_patterns = {
+        "diplomacy_tone": r"Diplomacy\s*&\s*Tone\s*:\s*(\d+(?:\.\d+)?)\s*/\s*10",
+        "clarity_structure": r"Clarity\s*&\s*Structure\s*:\s*(\d+(?:\.\d+)?)\s*/\s*10",
+        "evidence_facts": r"Evidence\s*&\s*Facts\s*:\s*(\d+(?:\.\d+)?)\s*/\s*10",
+        "persuasiveness": r"Persuasiveness\s*:\s*(\d+(?:\.\d+)?)\s*/\s*10",
+        "policy_alignment": r"Policy\s*Alignment(?:\s*with[^\n:]*)?\s*:\s*(\d+(?:\.\d+)?)\s*/\s*10",
+    }
+    scores: dict = {}
+    for key, pattern in score_patterns.items():
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        scores[key] = float(match.group(1)) if match else None
+
+    total_match = re.search(r"Total\s*Score\s*:\s*(\d+(?:\.\d+)?)\s*/\s*50", text, flags=re.IGNORECASE)
+    extracted_total = float(total_match.group(1)) if total_match else None
+    computed_total = sum(v for v in scores.values() if v is not None)
+    total = extracted_total if extracted_total is not None else computed_total
+
+    strengths = re.findall(r"Strengths\s*:?(.*?)(?:Improvements\s*:|$)", text, flags=re.IGNORECASE | re.DOTALL)
+    improvements = re.findall(r"Improvements\s*:?(.*?)(?:Improved\s*Paragraph\s*:|$)", text, flags=re.IGNORECASE | re.DOTALL)
+    improved_paragraph = re.findall(
+        r"Improved\s*Paragraph\s*:?(.*?)(?:Judge\s*Remark\s*:|$)",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    judge_remark = re.findall(r"Judge\s*Remark\s*:?(.*)$", text, flags=re.IGNORECASE | re.DOTALL)
+
+    return {
+        "scores": scores,
+        "total": round(total, 1) if total is not None else 0,
+        "strengths": strengths[0].strip() if strengths else "No strengths provided.",
+        "improvements": improvements[0].strip() if improvements else "No improvements provided.",
+        "improved_paragraph": improved_paragraph[0].strip() if improved_paragraph else "No improved paragraph provided.",
+        "judge_remark": judge_remark[0].strip() if judge_remark else "No judge remark provided.",
+        "raw": text.strip(),
     }
 
 
@@ -389,13 +464,14 @@ with left_col:
         with m3:
             st.markdown(f'<div class="metric-card metric-card-gold"><div class="metric-label">Readiness Score</div><div class="metric-value">{readiness}%</div></div>', unsafe_allow_html=True)
 
-    tab_brief, tab_args, tab_speech, tab_rebuttal, tab_crisis, tab_history = st.tabs(
+    tab_brief, tab_args, tab_speech, tab_rebuttal, tab_crisis, tab_speech_grader, tab_history = st.tabs(
         [
             f"📡 {committee} Intelligence Brief",
             f"⚔ {committee} Debate Points",
             f"🎤 {committee} Podium Speech",
             "🔄 Live Counter",
             "Crisis Simulation",
+            "Speech Grader",
             "📜 History",
         ]
     )
@@ -572,6 +648,96 @@ Realism score out of 10: 8/10""",
                     with st.chat_message("user"):
                         st.markdown(st.session_state["user_responses"][idx - 1])
                 st.divider()
+
+    with tab_speech_grader:
+        st.title("🎤 AI Speech Grader")
+        st.caption("Evaluate your MUN speech using a UN-style diplomatic rubric.")
+
+        speech_input = st.text_area("Paste Your Speech", height=220, key="speech_grader_input")
+        grader_col1, grader_col2 = st.columns(2)
+        with grader_col1:
+            grader_committee = st.selectbox("Committee", ALL_COMMITTEES, key="speech_grader_committee")
+        with grader_col2:
+            grader_country = st.selectbox(
+                "Country",
+                UN_MEMBER_STATES,
+                index=UN_MEMBER_STATES.index("India"),
+                key="speech_grader_country",
+            )
+
+        strict_mode = st.toggle("Strict Evaluation Mode", key="speech_grader_strict_mode")
+        evaluate_clicked = st.button("Evaluate Speech", type="primary", use_container_width=True, key="evaluate_speech_btn")
+
+        if evaluate_clicked:
+            if not speech_input.strip():
+                st.error("Please paste your speech before evaluation.")
+            else:
+                prompt = _build_speech_grader_prompt(
+                    speech=speech_input.strip(),
+                    committee=grader_committee,
+                    country=grader_country,
+                    strict_mode=strict_mode,
+                )
+                with st.spinner("Evaluating speech like a UN Chair..."):
+                    feedback_text = run_module(
+                        prompt=prompt,
+                        system=(
+                            "You are a senior UN committee chair grading speeches with rigorous diplomatic standards. "
+                            "Be realistic, specific, and actionable."
+                        ),
+                        mock_fn=lambda: """Diplomacy & Tone: 8/10
+Clarity & Structure: 7/10
+Evidence & Facts: 7/10
+Persuasiveness: 8/10
+Policy Alignment: 8/10
+Total Score: 38/50
+Strengths:
+- Diplomatic register is mostly formal and respectful.
+- Opening and close are coherent with clear intent.
+- Proposals are practical and coalition-friendly.
+Improvements:
+- Add one committee-specific factual reference with source context.
+- Tighten transitions between problem, policy, and implementation.
+- Include a sharper call-to-action tied to timelines.
+Improved Paragraph:
+Honourable Chair, this delegation urges a phased implementation framework that combines immediate humanitarian support with medium-term capacity-building, coordinated through regional partnerships and transparent reporting benchmarks.
+Judge Remark:
+A credible and composed speech with good diplomatic instincts; refine evidence density and structure for top-tier impact.""",
+                        label="Speech Grader",
+                    )
+                st.session_state["speech_grader_result"] = _parse_speech_grader_response(feedback_text)
+
+        if st.session_state.get("speech_grader_result"):
+            result = st.session_state["speech_grader_result"]
+            metrics = st.columns(5)
+            metric_map = [
+                ("Diplomacy & Tone", "diplomacy_tone"),
+                ("Clarity & Structure", "clarity_structure"),
+                ("Evidence / Facts", "evidence_facts"),
+                ("Persuasiveness", "persuasiveness"),
+                ("Policy Alignment", "policy_alignment"),
+            ]
+            for idx, (label, key) in enumerate(metric_map):
+                value = result["scores"].get(key)
+                metrics[idx].metric(label, f"{value if value is not None else 'N/A'} / 10")
+
+            st.markdown(f"## **Total Score: {result['total']} / 50**")
+            st.success(f"### Strengths\n{result['strengths']}")
+            st.warning(f"### Improvements\n{result['improvements']}")
+            st.info(f"### Judge Remark\n{result['judge_remark']}")
+            st.markdown("### Improved Paragraph")
+            st.markdown(
+                f"""
+<div style="padding: 1rem; border-radius: 0.6rem; border: 1px solid rgba(126, 136, 255, 0.35); background: rgba(126, 136, 255, 0.08);">
+{result['improved_paragraph']}
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+
+            if st.button("Copy Feedback", key="copy_feedback_btn"):
+                st.toast("Feedback prepared below. Copy it with Ctrl/Cmd + C.", icon="📋")
+            st.text_area("Feedback Output", value=result["raw"], height=200, key="speech_grader_feedback_output")
 
     with tab_history:
         st.markdown("### Your Speech Archive")
