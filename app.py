@@ -2,6 +2,7 @@
 
 import os
 import sys
+import re
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -23,6 +24,7 @@ from modules.brief import generate_brief
 from modules.arguments import generate_arguments
 from modules.speech import generate_speech
 from modules.rebuttal import generate_rebuttal
+from utils.ai_client import run_module
 
 
 COMMITTEE_CATEGORIES = {
@@ -152,10 +154,84 @@ def _init_state() -> None:
         "user_id": None,
         "username": None,
         "auth_toast": None,
+        "simulation_active": False,
+        "crisis_history": [],
+        "current_crisis": "",
+        "user_responses": [],
+        "ai_feedback": [],
+        "round_number": 0,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = val
+
+
+def _generate_crisis_prompt(committee: str, agenda: str, country: str) -> str:
+    return (
+        f"Generate a realistic UN-style geopolitical crisis scenario for {committee}, "
+        f"involving {agenda}, affecting {country}. Keep it concise and urgent."
+    )
+
+
+def _generate_next_crisis_prompt(last_crisis: str, country: str) -> str:
+    return (
+        f"Based on previous crisis: {last_crisis},\n"
+        f"generate an escalation or new development affecting {country}."
+    )
+
+
+def _build_crisis_evaluation_prompt(country: str, user_input: str, current_crisis: str) -> str:
+    return f"""Evaluate the following diplomatic response from {country} in a UN committee.
+Provide:
+- Strengths
+- Weaknesses
+- Strategic improvement
+- Realism score out of 10
+
+Response: {user_input}
+Crisis: {current_crisis}
+"""
+
+
+def _extract_section(text: str, section_name: str, stop_sections: list[str]) -> str:
+    section_pattern = rf"\*\*{section_name}\*\*|{section_name}:?"
+    start_match = re.search(section_pattern, text, flags=re.IGNORECASE)
+    if not start_match:
+        return ""
+    start = start_match.end()
+    end = len(text)
+    for stop in stop_sections:
+        stop_match = re.search(rf"\*\*{stop}\*\*|{stop}:?", text[start:], flags=re.IGNORECASE)
+        if stop_match:
+            end = min(end, start + stop_match.start())
+    return text[start:end].strip(" \n:-")
+
+
+def _parse_crisis_feedback(feedback_text: str) -> dict:
+    strengths = _extract_section(
+        feedback_text,
+        "Strengths",
+        ["Weaknesses", "Strategic improvement", "Realism score"],
+    )
+    weaknesses = _extract_section(
+        feedback_text,
+        "Weaknesses",
+        ["Strategic improvement", "Realism score"],
+    )
+    suggestions = _extract_section(
+        feedback_text,
+        "Strategic improvement",
+        ["Realism score"],
+    )
+    score_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:/|out of)\s*10", feedback_text, flags=re.IGNORECASE)
+    score = score_match.group(1) if score_match else "N/A"
+    return {
+        "strengths": strengths or "No strengths extracted.",
+        "weaknesses": weaknesses or "No weaknesses extracted.",
+        "suggestions": suggestions or "No strategic improvement extracted.",
+        "score": score,
+        "raw": feedback_text.strip(),
+    }
 
 
 _init_state()
@@ -313,12 +389,13 @@ with left_col:
         with m3:
             st.markdown(f'<div class="metric-card metric-card-gold"><div class="metric-label">Readiness Score</div><div class="metric-value">{readiness}%</div></div>', unsafe_allow_html=True)
 
-    tab_brief, tab_args, tab_speech, tab_rebuttal, tab_history = st.tabs(
+    tab_brief, tab_args, tab_speech, tab_rebuttal, tab_crisis, tab_history = st.tabs(
         [
             f"📡 {committee} Intelligence Brief",
             f"⚔ {committee} Debate Points",
             f"🎤 {committee} Podium Speech",
             "🔄 Live Counter",
+            "Crisis Simulation",
             "📜 History",
         ]
     )
@@ -367,6 +444,134 @@ with left_col:
             rebuttal=st.session_state["rebuttal"],
             generate_fn=lambda opp, pos: generate_rebuttal(country, topic, opp, pos),
         )
+
+    with tab_crisis:
+        st.markdown("## 🌍 Crisis Simulation Mode")
+        st.caption("Respond to evolving geopolitical crises in real-time.")
+        st.markdown(f"**Current Round:** {st.session_state.get('round_number', 0)}")
+
+        control_col1, control_col2 = st.columns(2)
+        with control_col1:
+            start_simulation_clicked = st.button("Start Simulation", use_container_width=True)
+        with control_col2:
+            next_crisis_clicked = st.button(
+                "Next Crisis",
+                use_container_width=True,
+                disabled=not st.session_state.get("simulation_active", False),
+            )
+
+        if start_simulation_clicked:
+            if not topic.strip():
+                st.error("Please enter an agenda to start Crisis Simulation.")
+            else:
+                st.session_state["simulation_active"] = True
+                st.session_state["round_number"] = 1
+                st.session_state["crisis_history"] = []
+                st.session_state["user_responses"] = []
+                st.session_state["ai_feedback"] = []
+                with st.spinner("Simulating geopolitical developments..."):
+                    first_crisis = run_module(
+                        prompt=_generate_crisis_prompt(committee, topic, country),
+                        system="You are a UN crisis director simulating real-time geopolitical developments.",
+                        mock_fn=lambda: (
+                            f"Urgent briefing: A rapidly escalating regional dispute tied to {topic} "
+                            f"has triggered cross-border instability and emergency deliberations in {committee}, "
+                            f"with immediate implications for {country}."
+                        ),
+                        label="Crisis Simulation",
+                    )
+                st.session_state["current_crisis"] = first_crisis
+                st.session_state["crisis_history"].append(first_crisis)
+
+        if next_crisis_clicked and st.session_state.get("simulation_active", False):
+            last_crisis = st.session_state.get("current_crisis", "")
+            if last_crisis:
+                st.session_state["round_number"] = st.session_state.get("round_number", 0) + 1
+                with st.spinner("Simulating geopolitical developments..."):
+                    next_crisis = run_module(
+                        prompt=_generate_next_crisis_prompt(last_crisis, country),
+                        system="You are a UN crisis director escalating scenarios in realistic, concise updates.",
+                        mock_fn=lambda: (
+                            f"Escalation update: Following prior developments, regional actors have intensified "
+                            f"their posture, increasing humanitarian and diplomatic pressure on {country}."
+                        ),
+                        label="Crisis Escalation",
+                    )
+                st.session_state["current_crisis"] = next_crisis
+                st.session_state["crisis_history"].append(next_crisis)
+
+        response_input = st.text_input("Your Response", key="crisis_user_response")
+        submit_response_clicked = st.button(
+            "Submit Response",
+            use_container_width=True,
+            disabled=not st.session_state.get("simulation_active", False),
+        )
+
+        if submit_response_clicked:
+            if not response_input.strip():
+                st.error("Please enter a diplomatic response before submitting.")
+            elif not st.session_state.get("current_crisis"):
+                st.error("No active crisis found. Start the simulation first.")
+            else:
+                st.session_state["user_responses"].append(response_input.strip())
+                with st.spinner("Simulating geopolitical developments..."):
+                    feedback_text = run_module(
+                        prompt=_build_crisis_evaluation_prompt(
+                            country=country,
+                            user_input=response_input.strip(),
+                            current_crisis=st.session_state["current_crisis"],
+                        ),
+                        system=(
+                            "You are an experienced MUN crisis committee chair. Return concise and practical feedback "
+                            "with clear sections for Strengths, Weaknesses, Strategic improvement, and Realism score out of 10."
+                        ),
+                        mock_fn=lambda: """Strengths:
+- Balanced diplomatic tone
+- Actionable immediate proposal
+
+Weaknesses:
+- Limited coalition-building detail
+- Missing enforcement mechanism
+
+Strategic improvement:
+- Add named bilateral and multilateral follow-up steps with timelines.
+
+Realism score out of 10: 8/10""",
+                        label="Crisis Feedback",
+                    )
+                parsed_feedback = _parse_crisis_feedback(feedback_text)
+                st.session_state["ai_feedback"].append(parsed_feedback)
+                st.session_state["crisis_user_response"] = ""
+
+        if st.session_state.get("current_crisis"):
+            st.markdown("### 🚨 Crisis Update:")
+            st.write(st.session_state["current_crisis"])
+
+        if st.session_state["ai_feedback"]:
+            latest_feedback = st.session_state["ai_feedback"][-1]
+            st.success(f"**Strengths:**\n{latest_feedback['strengths']}")
+            st.warning(f"**Weaknesses:**\n{latest_feedback['weaknesses']}")
+            st.info(f"**Suggestions:**\n{latest_feedback['suggestions']}")
+            st.metric("Realism Score", f"{latest_feedback['score']}/10")
+
+        if st.session_state["crisis_history"]:
+            st.markdown("---")
+            for idx, crisis_text in enumerate(st.session_state["crisis_history"], start=1):
+                st.markdown(f"#### Round {idx}: Crisis Update")
+                with st.chat_message("assistant"):
+                    st.markdown(f"🚨 {crisis_text}")
+                    if idx - 1 < len(st.session_state["ai_feedback"]):
+                        feedback = st.session_state["ai_feedback"][idx - 1]
+                        st.markdown(
+                            f"**Strengths:** {feedback['strengths']}\n\n"
+                            f"**Weaknesses:** {feedback['weaknesses']}\n\n"
+                            f"**Strategic Improvement:** {feedback['suggestions']}\n\n"
+                            f"**Realism Score:** {feedback['score']}/10"
+                        )
+                if idx - 1 < len(st.session_state["user_responses"]):
+                    with st.chat_message("user"):
+                        st.markdown(st.session_state["user_responses"][idx - 1])
+                st.divider()
 
     with tab_history:
         st.markdown("### Your Speech Archive")
