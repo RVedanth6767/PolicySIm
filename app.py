@@ -144,11 +144,18 @@ st.markdown(
 
 def _init_state() -> None:
     defaults: dict = {
-        "brief": None,
-        "arguments": None,
-        "speech": None,
-        "rebuttal": None,
-        "evaluation": None,
+        "results": {
+            "brief": None,
+            "arguments": None,
+            "speech": None,
+            "rebuttal": None,
+            "evaluation": None,
+            "committee": None,
+            "country": None,
+            "topic": None,
+            "duration": None,
+            "stance": None,
+        },
         "analysed": False,
         "app_started": False,
         "user_id": None,
@@ -432,8 +439,7 @@ with left_col:
         config = COMMITTEE_CONFIG.get(committee, COMMITTEE_CONFIG["default"])
         with st.spinner("Consulting diplomatic sources..."):
             brief = generate_brief(country, topic, committee, tone=config["tone"], focus=config["focus"])
-            st.session_state["brief"] = brief
-            st.session_state["arguments"] = generate_arguments(
+            arguments = generate_arguments(
                 country,
                 topic,
                 brief[:BRIEF_SUMMARY_LENGTH],
@@ -442,18 +448,30 @@ with left_col:
                 focus=config["focus"],
             )
             speech_text = generate_speech(country, topic, committee, duration, tone=config["tone"], focus=config["focus"])
-            st.session_state["speech"] = speech_text
             evaluation = generate_evaluation(country, topic, speech_text)
-            st.session_state["evaluation"] = evaluation
+            st.session_state["results"] = {
+                "brief": brief,
+                "arguments": arguments,
+                "speech": speech_text,
+                "rebuttal": None,
+                "evaluation": evaluation,
+                "committee": committee,
+                "country": country,
+                "topic": topic,
+                "duration": duration,
+                "stance": stance,
+            }
             save_speech(st.session_state["user_id"], country, topic, committee, speech_text, evaluation)
             st.session_state["analysed"] = True
-            st.session_state["rebuttal"] = None
+            st.rerun()
+
+    r = st.session_state.get("results", {})
 
     if st.session_state["analysed"]:
-        arguments_text = st.session_state["arguments"] or ""
+        arguments_text = r.get("arguments") or ""
         args_count = sum(1 for line in arguments_text.splitlines() if line.strip().startswith(("-", "*", "1", "2", "3", "4")))
         args_count = args_count if args_count else 4
-        speech_words = len((st.session_state["speech"] or "").split())
+        speech_words = len((r.get("speech") or "").split())
         readiness = min(99, max(84, 86 + (args_count * 2) + (4 if speech_words > 180 else 0)))
 
         m1, m2, m3 = st.columns(3)
@@ -479,7 +497,7 @@ with left_col:
     with tab_brief:
         render_brief_tab(
             analysed=st.session_state["analysed"],
-            brief=st.session_state["brief"] or "",
+            brief=r.get("brief") or "",
             country=country,
             topic=topic,
         )
@@ -487,20 +505,20 @@ with left_col:
     with tab_args:
         render_arguments_tab(
             analysed=st.session_state["analysed"],
-            arguments=st.session_state["arguments"] or "",
+            arguments=r.get("arguments") or "",
             country=country,
         )
 
     with tab_speech:
         render_speech_tab(
             analysed=st.session_state["analysed"],
-            speech=st.session_state["speech"] or "",
+            speech=r.get("speech") or "",
             country=country,
             committee=committee,
             duration=duration,
         )
 
-        if "evaluation" in st.session_state and st.session_state["evaluation"]:
+        if "evaluation" in r and r["evaluation"]:
             st.markdown(
                 """
     <div class="eval-card">
@@ -509,15 +527,16 @@ with left_col:
     """,
                 unsafe_allow_html=True,
             )
-            st.markdown(st.session_state["evaluation"])
+            st.markdown(r["evaluation"])
+            st.write("DEBUG:", st.session_state.results)
 
     with tab_rebuttal:
         render_rebuttal_tab(
             analysed=st.session_state["analysed"],
             country=country,
             topic=topic,
-            brief=st.session_state["brief"] or "",
-            rebuttal=st.session_state["rebuttal"],
+            brief=r.get("brief") or "",
+            rebuttal=r.get("rebuttal"),
             generate_fn=lambda opp, pos: generate_rebuttal(country, topic, opp, pos),
         )
 
